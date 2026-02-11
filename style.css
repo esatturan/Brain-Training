@@ -1,0 +1,167 @@
+/* --- RESET & PREMIUM FONTS --- */
+@import url('https://fonts.googleapis.com/css2?family=Varela+Round&display=swap');
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body, html { 
+    width: 100%; height: 100%; overflow: hidden; 
+    background-color: #f8f9fc; font-family: 'Varela Round', sans-serif;
+    user-select: none; -webkit-tap-highlight-color: transparent;
+}
+
+.hidden { display: none !important; }
+
+/* --- SCREENS (Centering Fix) --- */
+#name-screen, #menu-screen, #results-screen {
+    position: fixed; 
+    inset: 0; 
+    display: flex; 
+    flex-direction: column;
+    align-items: center; 
+    justify-content: center; /* This centers everything vertically */
+    z-index: 100;
+    padding: 20px;
+    text-align: center;
+}
+
+#name-screen { background: #f8f9fc; }
+#menu-screen { background: linear-gradient(135deg, #7b61ff, #ff4b4b); }
+#results-screen { background: #7b61ff; }
+
+/* --- TOP BAR (Aesthetic Update) --- */
+#top-bar {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    /* safe-area-inset-top prevents overlap with the iPhone Notch/Dynamic Island */
+    padding: calc(env(safe-area-inset-top) + 15px) 20px 10px 20px;
+    z-index: 50;
+}
+
+#home-btn { 
+    font-size: 1.2rem; background: white; border: none; 
+    width: 45px; height: 45px; border-radius: 50%; 
+    box-shadow: 0 4px 0 #ddd; transition: 0.1s;
+    display: flex; align-items: center; justify-content: center;
+}
+
+/* Glassmorphism Round Counter */
+#instruction {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    padding: 8px 20px;
+    border-radius: 50px;
+    font-size: 0.85rem;
+    font-weight: bold;
+    color: #555;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+#opponent-view { display: flex; flex-direction: column; align-items: flex-end; }
+.label { font-size: 0.65rem; font-weight: 800; color: #7b61ff; margin-bottom: 3px; }
+#opponent-counter {
+    background: #2d2d2d; color: #4bffb4; 
+    font-family: 'Courier New', Courier, monospace;
+    padding: 4px 12px; border-radius: 6px; font-size: 1.1rem;
+    box-shadow: inset 0 2px 5px rgba(0,0,0,0.5);
+}
+
+/* --- PLAY AREA & GRID --- */
+#game-screen { display: flex; flex-direction: column; height: 100vh; }
+#play-area { 
+    position: relative; 
+    width: 94%; 
+    margin: 10px auto;
+    background: white; 
+    border-radius: 30px; 
+    box-shadow: inset 0 0 15px rgba(0,0,0,0.05);
+    overflow: hidden;
+    flex-grow: 1; /* Pushes UI layer to the bottom */
+}
+
+.game-object { 
+    position: absolute; 
+    transform: translate(-50%, -50%); 
+    font-size: 48px; 
+    z-index: 10; 
+}
+
+/* --- UI CONTROLS (Bottom Layout Fix) --- */
+#ui-layer { 
+    padding: 20px 30px; 
+    /* safe-area-inset-bottom keeps the button above the iPhone home bar */
+    padding-bottom: calc(env(safe-area-inset-bottom) + 30px); 
+    text-align: center; 
+    background: #f8f9fc;
+}
+
+#my-counter { font-size: 4.5rem; font-weight: bold; color: #333; margin-bottom: 5px; }
+.button-row { display: flex; gap: 15px; margin-bottom: 15px; transition: 0.4s; }
+.ctrl-btn { 
+    flex: 1; padding: 20px; border-radius: 20px; border: none; 
+    color: white; font-size: 2.2rem; font-weight: bold;
+}
+#plus-btn { background: #7b61ff; box-shadow: 0 8px 0 #5a44c7; }
+#minus-btn { background: #5d5d5d; box-shadow: 0 8px 0 #333; }
+
+#lock-btn { 
+    width: 100%; padding: 20px; border-radius: 20px; border: none; 
+    background: #ff4b4b; color: white; font-size: 1.4rem; font-weight: bold; 
+    box-shadow: 0 8px 0 #c23232; transition: 0.2s; 
+}
+
+/* --- MENU & INPUT IMPROVEMENTS --- */
+.logo { color: white; font-size: 2.8rem; text-shadow: 0 4px 10px rgba(0,0,0,0.2); margin-bottom: 30px; }
+#name-screen .logo { color: #333; }
+
+.menu-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    width: 100%;
+    max-width: 300px;
+}
+
+#player-name-input { 
+    padding: 18px; border-radius: 20px; border: 3px solid #7b61ff; 
+    font-size: 1.3rem; width: 100%; max-width: 300px; text-align: center; 
+    margin-bottom: 20px; font-family: 'Varela Round', sans-serif;
+    outline: none;
+    background: white;
+}
+
+.menu-btn { 
+    background: white; color: #333; padding: 20px; 
+    border-radius: 25px; border: none; font-size: 1.2rem; font-weight: bold; 
+    box-shadow: 0 6px 0 #ddd; width: 100%; transition: 0.1s;
+}
+.menu-btn:active { transform: translateY(3px); box-shadow: 0 3px 0 #ddd; }
+
+/* Locked Button Style */
+.menu-btn.locked { background: #eee; color: #aaa; box-shadow: 0 6px 0 #ccc; pointer-events: none; }
+
+/* --- RESULTS --- */
+.score-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 30px; }
+.score-card { 
+    background: white; padding: 18px 25px; border-radius: 20px; 
+    width: 280px; display: flex; justify-content: space-between; 
+    align-items: center; box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+}
+.name-tag { font-weight: bold; color: #555; }
+.score-val { font-weight: 900; color: #7b61ff; font-size: 1.4rem; }
+
+#winner-announcement {
+    font-size: 2.4rem; font-weight: 900; color: white;
+    margin-bottom: 20px; text-align: center;
+    text-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    animation: winnerPop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) infinite alternate;
+}
+
+@keyframes winnerPop {
+    from { transform: scale(1); }
+    to { transform: scale(1.05); }
+}

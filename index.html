@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Birdwatching</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div id="name-screen">
+        <h1 class="logo">Brain Training</h1>
+        <div class="input-group">
+            <input type="text" id="player-name-input" placeholder="Enter your name..." maxlength="10">
+        </div>
+        <button class="menu-btn" id="name-submit-btn">JOIN LOBBY</button>
+    </div>
+
+    <div id="menu-screen" class="hidden">
+        <h1 class="logo">Mini-Games</h1>
+        <div class="menu-buttons">
+            <button class="menu-btn" id="start-birds-btn">Birdwatching</button>
+            <button class="menu-btn locked">Count the Boxes (Soon)</button>
+        </div>
+        <p style="color: white; font-size: 0.8rem; margin-top: 20px; opacity: 0.7;">Aşkışımı çok sevom...</p>
+    </div>
+
+    <div id="game-screen" class="hidden">
+        <div id="top-bar">
+            <button id="home-btn">🏠</button>
+            <div id="opponent-view">
+                <span class="label">WAITING...</span>
+                <div id="opponent-counter">00</div>
+            </div>
+        </div>
+
+        <h2 id="instruction">Round 1</h2>
+        <div id="play-area"></div>
+
+        <div id="ui-layer">
+            <div id="my-counter">00</div>
+            <div class="button-row">
+                <button id="minus-btn" class="ctrl-btn">-</button>
+                <button id="plus-btn" class="ctrl-btn">+</button>
+            </div>
+            <button id="lock-btn">LOCK IN</button>
+        </div>
+    </div>
+
+    <div id="results-screen" class="hidden">
+        <h1 class="logo">FINAL SCORE</h1>
+        <div id="winner-announcement"></div>
+        
+        <div class="score-list">
+            <div class="score-card">
+                <span class="name-tag" id="res-my-name">YOU</span>
+                <span class="score-val" id="res-my-score">0</span>
+            </div>
+            
+            <div class="score-card">
+                <span class="name-tag" id="res-partner-name">PARTNER</span>
+                <span class="score-val" id="res-partner-score">0</span>
+            </div>
+        </div>
+        
+        <button class="menu-btn" id="final-home-btn">PLAY AGAIN</button>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
