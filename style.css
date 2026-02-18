@@ -165,3 +165,169 @@ body, html {
     from { transform: scale(1); }
     to { transform: scale(1.05); }
 }
+
+/* --- 3D BOXES SYSTEM --- */
+:root {
+    --cube-size: 40px;
+    --front-color: #7b61ff;
+    --top-color: #a391ff;
+    --side-color: #5a44c7;
+    --grid-line: rgba(0, 0, 0, 0.1);
+}
+
+.isometric-view {
+    perspective: 1000px;
+    perspective-origin: center; /* Ensures the 'eye' is looking at the center */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+}
+
+.scene-3d {
+    position: relative;
+    width: 200px;
+    height: 200px;
+    transform: rotateX(60deg) rotateZ(45deg);
+    transform-style: preserve-3d;
+    display: grid;
+    grid-template-columns: repeat(5, 40px);
+    grid-template-rows: repeat(5, 40px);
+    
+    /* Reveal the closest edges by adding a solid border to the scene */
+    border: 2px solid rgba(0, 0, 0, 0.2);
+    
+    background-image: 
+        linear-gradient(rgba(0,0,0,0.1) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,0,0,0.1) 1px, transparent 1px);
+    background-size: 40px 40px;
+    /* This ensures the grid lines start exactly where the cubes do */
+    background-position: -1px -1px;
+    transform-style: preserve-3d !important;
+    backface-visibility: visible !important;
+}
+
+.cube {
+    position: relative;
+    width: 38px;
+    height: 38px;
+    transform-style: preserve-3d !important;
+    backface-visibility: visible !important;
+    
+    /* THE FIX: This shifts the cube out of the "half-sunk" position 
+       to align perfectly with the grid squares */
+    margin-left: 1px;
+    margin-top: 1px;
+    animation: cubePop 0.3s ease-out forwards;
+}
+
+.cube div {
+    position: absolute;
+    width: 38px;
+    height: 38px;
+    box-sizing: border-box;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    opacity: 0.9;
+    transform-style: preserve-3d !important;
+    backface-visibility: visible !important;
+}
+
+/* Adjust faces to match the 38px size */
+.face-front { transform: rotateX(-90deg) translateZ(19px); background: #7b61ff; }
+.face-top   { transform: translateZ(19px); background: #a391ff; }
+.face-side  { transform: rotateY(90deg) translateZ(19px); background: #5a44c7; }
+
+.slide-out {
+    transform: rotateX(60deg) rotateZ(45deg) translateX(800px) !important;
+    transition: transform 0.8s ease-in;
+    opacity: 0;
+}
+
+.mystery-q {
+    font-size: 10rem;
+    color: #ddd;
+    font-weight: 900;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+}
+
+/* Styling for the numbers appearing on cubes */
+.cube-number {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 14px;
+    font-weight: 900;
+    color: white;
+    /* Lift it 2px above the face to prevent "z-fighting" */
+    transform: translateZ(2px); 
+    pointer-events: none;
+    text-shadow: 0 0 3px rgba(0,0,0,0.5);
+}
+
+/* Added to cubes during reveal so you can see through them */
+.reveal-mode {
+    opacity: 0.8; /* Slightly see-through to see hidden cubes */
+    transform-style: preserve-3d !important;
+    transition: all 0.3s ease;
+}
+
+@keyframes cubePop {
+    0% { transform: scale(0) translate3d(0, 0, 0); opacity: 0; }
+    70% { transform: scale(1.1); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+/* Big counter for the reveal */
+.reveal-counter {
+    font-size: 3rem;
+    font-weight: 900;
+    color: #2ecc71;
+    text-shadow: 0 0 10px rgba(46, 204, 113, 0.5);
+    margin-bottom: 20px;
+    font-family: 'Courier New', Courier, monospace;
+}
+
+/* The gallery view (hides the 3D grid tilt) */
+/* Container for the counting gallery */
+.gallery-view {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-content: flex-start;
+    gap: 20px;
+    width: 100%;
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 20px;
+}
+
+.gallery-item {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    transform: rotateX(-20deg) rotateY(30deg); /* Slight tilt to see 3D faces */
+    transform-style: preserve-3d;
+}
+
+/* The "Counted" state */
+.cube.counted div {
+    background: #2ecc71 !important; /* Green */
+    border-color: #ffffff !important;
+    transform: scale(1.1);
+    transition: all 0.1s ease;
+}
+
+.reveal-counter {
+    font-size: 3rem;
+    font-weight: 900;
+    color: #2ecc71;
+    text-align: center;
+    width: 100%;
+    margin-top: 10px;
+}

@@ -5,22 +5,19 @@ const io = require('socket.io')(http);
 
 app.use(express.static(__dirname));
 
-// Data structures organized by Room ID
 let rooms = {}; 
 
 io.on('connection', (socket) => {
     socket.on('joinGame', (data) => {
         const { name, room } = data;
         socket.join(room);
-        socket.room = room; // Store room on socket for easy access
+        socket.room = room;
 
         if (!rooms[room]) {
-            rooms[room] = { players: {}, roundResults: {}, currentRound: 1 };
+            rooms[room] = { players: {}, roundResults: {}, currentRound: 1, gameType: 'birds' };
         }
 
         const roomData = rooms[room];
-        
-        // Only allow 2 players per room
         if (Object.keys(roomData.players).length < 2) {
             roomData.players[socket.id] = { id: socket.id, name: name, totalScore: 0, ready: false };
             io.to(room).emit('updatePlayerList', Object.values(roomData.players));
@@ -29,17 +26,19 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('playerReady', () => {
+    socket.on('playerReady', (type) => {
         const room = socket.room;
         const roomData = rooms[room];
         if (!roomData || !roomData.players[socket.id]) return;
 
         roomData.players[socket.id].ready = true;
+        roomData.gameType = type || 'birds'; // Store if we are playing birds or boxes
         let readyPlayers = Object.values(roomData.players).filter(p => p.ready);
 
         if (readyPlayers.length === 2) {
             roomData.currentRound = 1;
-            io.to(room).emit('startGame', generateLevelData(1));
+            const data = roomData.gameType === 'boxes' ? generateBoxLevel(1) : generateLevelData(1);
+            io.to(room).emit('startGame', data);
         } else {
             socket.emit('waitingForOpponent');
         }
@@ -67,8 +66,9 @@ io.on('connection', (socket) => {
             const calculatedScores = {};
             for (let id in roomData.roundResults) {
                 const res = roomData.roundResults[id];
-                const isPerfect = res.count === res.actualBirds;
-                const accuracy = 1 - (Math.abs(res.count - res.actualBirds) / res.actualBirds);
+                // We use 'actualCount' as a generic name for birds or boxes
+                const isPerfect = res.count === res.actualCount;
+                const accuracy = 1 - (Math.abs(res.count - res.actualCount) / res.actualCount);
                 const score = Math.max(0, Math.round((1000 / res.timeTaken) * (isPerfect ? 1 : accuracy * 0.5)));
                 
                 roomData.players[id].totalScore += score;
@@ -82,14 +82,29 @@ io.on('connection', (socket) => {
             io.to(room).emit('startReveal', calculatedScores);
             roomData.roundResults = {}; 
 
+            io.to(room).emit('startReveal', calculatedScores);
+
+            const firstResult = Object.values(roomData.roundResults)[0];
+            const countToReveal = firstResult ? firstResult.actualCount : 10;
+
+            // Math: (Cubes * 250ms) + 3.5 seconds for results/reading time
+            const revealDuration = (countToReveal * 250) + 3500;
+
+            roomData.roundResults = {}; // Clear for next round
+
             setTimeout(() => {
-                if (roomData.currentRound < 5) {
+                const maxRounds = roomData.gameType === 'boxes' ? 7 : 5;
+                if (roomData.currentRound < maxRounds) {
                     roomData.currentRound++;
-                    io.to(room).emit('nextRoundData', generateLevelData(roomData.currentRound));
+                    const nextData = roomData.gameType === 'boxes' ? 
+                        generateBoxLevel(roomData.currentRound) : 
+                        generateLevelData(roomData.currentRound);
+                    
+                    io.to(room).emit('nextRoundData', nextData);
                 } else {
                     io.to(room).emit('gameOver');
                 }
-            }, 7000);
+            }, revealDuration);
         }
     });
 
@@ -97,12 +112,12 @@ io.on('connection', (socket) => {
         const room = socket.room;
         if (room && rooms[room]) {
             delete rooms[room].players[socket.id];
-            if (Object.keys(rooms[room].players).length === 0) {
-                delete rooms[room]; // Clean up empty rooms
-            }
+            if (Object.keys(rooms[room].players).length === 0) delete rooms[room];
         }
     });
 });
+
+// --- GENERATORS ---
 
 function generateLevelData(round) {
     const minBirds = 3 + (round * 2);
@@ -112,7 +127,38 @@ function generateLevelData(round) {
     let spots = [];
     for(let r=0; r<6; r++) for(let c=0; c<5; c++) spots.push({ x: 10 + (c * 20), y: 10 + (r * 15) });
     spots.sort(() => Math.random() - 0.5);
-    return { birdCount, decoyCount, spots, round };
+    return { birdCount, decoyCount, spots, round, gameType: 'birds' };
+}
+
+// server.js - Updated Generator
+function generateBoxLevel(round) {
+    // Randomize total count: Base range grows with rounds
+    const minCubes = 4 + round;
+    const maxCubes = 8 + (round * 2);
+    const cubeCount = Math.floor(Math.random() * (maxCubes - minCubes + 1)) + minCubes;
+    
+    const cubes = [];
+    const gridHeights = {}; // Keeps track of stacks at each (x,y)
+
+    for (let i = 0; i < cubeCount; i++) {
+        // Pick a random spot on the 5x5 grid
+        let x = Math.floor(Math.random() * 5);
+        let y = Math.floor(Math.random() * 5);
+        let key = `${x},${y}`;
+        
+        // Stack logic: if spot is taken, go up (Z)
+        let z = gridHeights[key] || 0;
+        cubes.push({ x, y, z });
+        gridHeights[key] = z + 1;
+    }
+
+    return { 
+        cubes, 
+        round, 
+        gameType: 'boxes', 
+        actualCount: cubes.length, // Explicitly send the total
+        shouldSlide: round >= 4 
+    };
 }
 
 const PORT = process.env.PORT || 3000;

@@ -1,10 +1,10 @@
 const socket = io();
 let playerName = "Player", myTotalScore = 0, partnerTotalScore = 0;
 let partnerName = "Partner";
-let roundStartTime = 0, count = 0, actualBirdCount = 0, currentRound = 1;
-const totalRounds = 5;
+let roundStartTime = 0, count = 0, actualTargetCount = 0, currentRound = 1;
+let lastBoxScene = null;
+let lastBoxData = null; // This stores the cube array for the reveal
 
-// --- AUDIO POOLING (Fixes silence after Round 1) ---
 const soundFiles = {
     tap: 'https://assets.mixkit.co/active_storage/sfx/2585/2585-preview.mp3',
     lock: 'https://assets.mixkit.co/active_storage/sfx/93/93-preview.mp3',
@@ -16,25 +16,13 @@ const soundFiles = {
     victory: 'https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3'
 };
 
-function playSound(type) {
-    const audio = new Audio(soundFiles[type]);
-    audio.play().catch(e => {});
-}
-
-function triggerHaptic(type) {
-    // iPhone won't vibrate if "Low Power Mode" is on or if "Haptics" are off in System Settings
-    if (!navigator.vibrate) return;
-    if (type === 'light') navigator.vibrate(20);
-    if (type === 'medium') navigator.vibrate(45);
-    if (type === 'success') navigator.vibrate([30, 50, 30]);
-    if (type === 'error') navigator.vibrate([60, 100, 60]);
-}
+function playSound(type) { new Audio(soundFiles[type]).play().catch(e => {}); }
+function triggerHaptic(t) { if(navigator.vibrate) navigator.vibrate(t==='light'?20:t==='medium'?45:t==='success'?[30,50,30]:[60,100,60]); }
 
 function unlockAudioAndHaptics() {
-    triggerHaptic('light'); // Crucial: "Blesses" haptics on iOS
+    triggerHaptic('light');
     Object.values(soundFiles).forEach(url => {
-        const a = new Audio(url);
-        a.muted = true;
+        const a = new Audio(url); a.muted = true;
         a.play().then(() => { a.pause(); a.currentTime = 0; });
     });
 }
@@ -42,80 +30,67 @@ function unlockAudioAndHaptics() {
 // --- SOCKET LISTENERS ---
 
 socket.on('startGame', (gameData) => {
-    actualBirdCount = gameData.birdCount;
     currentRound = 1;
-    startBirdsSequence(gameData);
-});
-
-socket.on('partnerUpdate', (data) => {
-    partnerName = data.name;
-    const label = document.querySelector('.label'); 
-    if (label) label.innerText = partnerName.toUpperCase();
-    const oppDisplay = document.getElementById('opponent-counter');
-    if (oppDisplay) oppDisplay.innerText = data.count < 10 ? "0" + data.count : data.count;
-});
-
-socket.on('partnerLockedIn', () => {
-    playSound('partnerLock');
-    const oppDisplay = document.getElementById('opponent-counter');
-    oppDisplay.innerText = "OK";
-    oppDisplay.style.color = "#7b61ff";
-});
-
-socket.on('startReveal', (calculatedScores) => {
-    runRevealSequence(calculatedScores);
+    myTotalScore = 0; partnerTotalScore = 0;
+    startSequence(gameData);
 });
 
 socket.on('nextRoundData', (gameData) => {
     currentRound = gameData.round;
-    actualBirdCount = gameData.birdCount;
     renderNewRound(gameData);
 });
 
-// Listener for the server-controlled Game Over
-socket.on('gameOver', () => {
-    showResults();
+socket.on('partnerUpdate', (data) => {
+    partnerName = data.name;
+    document.querySelector('.label').innerText = partnerName.toUpperCase();
+    const opp = document.getElementById('opponent-counter');
+    opp.innerText = data.count < 10 ? "0" + data.count : data.count;
 });
 
-// --- UI EVENT LISTENERS ---
+socket.on('partnerLockedIn', () => {
+    playSound('partnerLock');
+    const opp = document.getElementById('opponent-counter');
+    opp.innerText = "OK";
+    opp.style.color = "#7b61ff";
+});
+
+socket.on('startReveal', (calculatedScores) => { runRevealSequence(calculatedScores); });
+socket.on('gameOver', () => { showResults(); });
+
+// --- UI EVENTS ---
 
 document.getElementById('name-submit-btn').addEventListener('click', () => {
     unlockAudioAndHaptics();
     const input = document.getElementById('player-name-input').value;
-    
-    // Get room from URL (e.g., #lobby123) or default to 'global'
     const roomName = window.location.hash.substring(1) || 'default-room';
-
     if(input) {
         playerName = input;
-        // Send both name and room to server
         socket.emit('joinGame', { name: playerName, room: roomName });
-        
-        // Show the room name in the UI so they can share it
         document.getElementById('instruction').innerText = `ROOM: ${roomName}`;
     }
-    
     document.getElementById('name-screen').classList.add('hidden');
     document.getElementById('menu-screen').classList.remove('hidden');
 });
 
 document.getElementById('start-birds-btn').addEventListener('click', () => {
-    triggerHaptic('medium'); 
-    socket.emit('playerReady');
+    socket.emit('playerReady', 'birds');
+    document.getElementById('menu-screen').classList.add('hidden');
+    document.getElementById('game-screen').classList.remove('hidden');
+});
+
+document.getElementById('start-boxes-btn').addEventListener('click', () => {
+    socket.emit('playerReady', 'boxes');
     document.getElementById('menu-screen').classList.add('hidden');
     document.getElementById('game-screen').classList.remove('hidden');
 });
 
 // --- GAME LOGIC ---
 
-async function startBirdsSequence(gameData) {
+async function startSequence(gameData) {
     const instr = document.getElementById('instruction');
-    myTotalScore = 0; partnerTotalScore = 0; 
-    
     for(let i=3; i>0; i--) {
         instr.innerText = `READY... ${i}`;
-        playSound('tap');
-        triggerHaptic('light'); 
+        playSound('tap'); triggerHaptic('light');
         await new Promise(r => setTimeout(r, 800));
     }
     renderNewRound(gameData);
@@ -125,31 +100,32 @@ function renderNewRound(gameData) {
     playSound('swish');
     count = 0;
     updateCounter();
-    
-    // UI Resets
-    const oppDisplay = document.getElementById('opponent-counter');
-    oppDisplay.innerText = "00";
-    oppDisplay.style.color = "#4bffb4";
-    document.getElementById('my-counter').style.color = "#333";
-    document.getElementById('instruction').innerText = `ROUND ${currentRound}`;
-    
-    // Fix: Ensure buttons reappear and are clickable again
-    const btnRow = document.querySelector('.button-row');
-    const lockBtn = document.getElementById('lock-btn');
-    btnRow.classList.remove('fade-out');
-    lockBtn.classList.remove('fade-out');
-    btnRow.style.pointerEvents = "auto";
-    lockBtn.style.pointerEvents = "auto";
-    
+    actualTargetCount = gameData.gameType === 'boxes' ? gameData.cubeCount : gameData.birdCount;
+
     const playArea = document.getElementById('play-area');
     playArea.innerHTML = "";
+    playArea.classList.remove('isometric-view');
     
+    // UI RESET
+    const opp = document.getElementById('opponent-counter');
+    opp.innerText = "00"; opp.style.color = "#4bffb4";
+    document.getElementById('my-counter').style.color = "#333";
+    document.getElementById('instruction').innerText = `ROUND ${currentRound}`;
+    toggleControls(true);
+
+    if (gameData.gameType === 'birds') {
+        renderBirds(gameData, playArea);
+    } else {
+        renderBoxes(gameData, playArea);
+    }
+}
+
+function renderBirds(gameData, playArea) {
     for(let i=0; i < (gameData.birdCount + gameData.decoyCount); i++) {
         const isBird = i < gameData.birdCount;
         const el = document.createElement('div');
         el.className = 'game-object';
-        el.innerText = isBird ? (Math.random() > 0.5 ? "🐦" : "🐤") : "🍎";
-        if (currentRound > 3) el.style.fontSize = "38px";
+        el.innerText = isBird ? "🐦" : "🍎";
         el.style.left = gameData.spots[i].x + "%";
         el.style.top = gameData.spots[i].y + "%";
         el.setAttribute('data-type', isBird ? 'bird' : 'decoy');
@@ -158,91 +134,137 @@ function renderNewRound(gameData) {
     roundStartTime = Date.now();
 }
 
+async function renderBoxes(gameData, playArea) {
+    lastBoxData = gameData; // <--- CRITICAL: Save the data here!
+    actualTargetCount = gameData.actualCount || gameData.cubes.length;
+    
+    playArea.classList.add('isometric-view');
+    toggleControls(false); 
+    
+    const scene = document.createElement('div');
+    scene.className = 'scene-3d';
+    playArea.appendChild(scene);
+
+    const chunkSize = 3;
+    const cubes = gameData.cubes;
+    
+    for (let i = 0; i < cubes.length; i += chunkSize) {
+        scene.innerHTML = ""; 
+        const chunk = cubes.slice(i, i + chunkSize);
+
+        chunk.forEach(c => {
+            const cube = document.createElement('div');
+            cube.className = 'cube';
+            cube.style.gridColumn = c.x + 1;
+            cube.style.gridRow = c.y + 1;
+            const tz = 19 + (c.z * 38);
+            cube.style.transform = `translate3d(0, 0, ${tz}px)`;
+            cube.innerHTML = `<div class="face-front"></div><div class="face-top"></div><div class="face-side"></div>`;
+            scene.appendChild(cube);
+        });
+
+        await new Promise(r => setTimeout(r, 800)); // Burst duration
+    }
+
+    scene.innerHTML = "";
+    playArea.innerHTML = `<div class="mystery-q">?</div>`;
+    toggleControls(true);
+    roundStartTime = Date.now();
+}
+
+
+function toggleControls(active) {
+    const btns = document.querySelector('.button-row');
+    const lock = document.getElementById('lock-btn');
+    btns.style.pointerEvents = active ? "auto" : "none";
+    lock.style.pointerEvents = active ? "auto" : "none";
+    btns.style.opacity = active ? "1" : "0.3";
+    lock.style.opacity = active ? "1" : "0.3";
+}
+
+// --- SHARED BUTTONS ---
+
 document.getElementById('plus-btn').addEventListener('touchstart', (e) => {
-    e.preventDefault(); 
-    count++; 
-    updateCounter(); 
-    triggerHaptic('light'); 
-    playSound('tap');
+    e.preventDefault(); count++; updateCounter(); playSound('tap');
     socket.emit('updateCount', count);
 });
 
 document.getElementById('minus-btn').addEventListener('touchstart', (e) => {
-    e.preventDefault(); 
-    if(count > 0) count--; 
-    updateCounter(); 
-    triggerHaptic('light');
-    playSound('tap');
+    e.preventDefault(); if(count > 0) count--; updateCounter(); playSound('tap');
     socket.emit('updateCount', count);
+});
+
+document.getElementById('lock-btn').addEventListener('click', () => {
+    const timeTaken = (Date.now() - roundStartTime) / 1000;
+    toggleControls(false);
+    socket.emit('lockIn', { count, timeTaken, actualCount: actualTargetCount });
+    playSound('lock');
+    document.getElementById('instruction').innerText = "WAITING...";
 });
 
 function updateCounter() { document.getElementById('my-counter').innerText = count < 10 ? "0" + count : count; }
 
-document.getElementById('lock-btn').addEventListener('click', () => {
-    const timeTaken = (Date.now() - roundStartTime) / 1000;
-    
-    // Disable interaction IMMEDIATELY
-    const btnRow = document.querySelector('.button-row');
-    const lockBtn = document.getElementById('lock-btn');
-    
-    btnRow.style.pointerEvents = "none"; 
-    lockBtn.style.pointerEvents = "none";
-    btnRow.classList.add('fade-out');
-    lockBtn.classList.add('fade-out');
-
-    socket.emit('lockIn', { count, timeTaken, actualBirds: actualBirdCount });
-    playSound('lock');
-    triggerHaptic('medium');
-    
-    document.getElementById('instruction').innerText = "WAITING FOR PARTNER...";
-});
-
 async function runRevealSequence(calculatedScores) {
-    const birds = document.querySelectorAll('.game-object[data-type="bird"]');
-    let r = 0;
-    const revealSpeed = actualBirdCount > 15 ? 150 : 300;
+    const playArea = document.getElementById('play-area');
+    const instruction = document.getElementById('instruction');
+    const isBoxes = playArea.classList.contains('isometric-view');
 
-    // 1. Reveal the birds one by one
-    for(let b of birds) {
-        r++; 
-        b.innerText = r; 
-        b.style.color = "#ff4b4b"; 
-        b.style.fontWeight = "bold";
-        playSound('reveal');
-        triggerHaptic('light'); 
-        await new Promise(res => setTimeout(res, revealSpeed));
+    if (isBoxes) {
+        playArea.classList.remove('isometric-view'); // Flatten the grid
+        playArea.innerHTML = `
+            <div id="reveal-counter" class="reveal-counter">0</div>
+            <div id="gallery" class="gallery-view"></div>
+        `;
+        
+        const gallery = document.getElementById('gallery');
+        const counterDisplay = document.getElementById('reveal-counter');
+
+        if (!lastBoxData || !lastBoxData.cubes) return;
+
+        const cubeElements = [];
+        lastBoxData.cubes.forEach(() => {
+            const cube = document.createElement('div');
+            cube.className = 'cube gallery-item'; 
+            // We give them a basic 3D look even in the gallery
+            cube.innerHTML = `<div class="face-front"></div><div class="face-top"></div><div class="face-side"></div>`;
+            gallery.appendChild(cube);
+            cubeElements.push(cube);
+        });
+
+        for (let i = 0; i < cubeElements.length; i++) {
+            await new Promise(r => setTimeout(r, 250));
+            cubeElements[i].classList.add('counted'); 
+            counterDisplay.innerText = i + 1;
+            playSound('reveal');
+            triggerHaptic('light');
+        }
+    } else {
+        const birds = document.querySelectorAll('.game-object[data-type="bird"]');
+        for (let i = 0; i < birds.length; i++) {
+            birds[i].innerText = i + 1;
+            birds[i].style.color = "#ff4b4b";
+            birds[i].style.fontWeight = "bold";
+            playSound('reveal');
+            triggerHaptic('light');
+            await new Promise(res => setTimeout(res, 250));
+        }
     }
-    
-    // 2. Identify Player vs Partner Data
+
+    // SCORING LOGIC (Keep this identical)
+    instruction.innerText = `ACTUAL: ${actualTargetCount}`;
     const myData = calculatedScores[socket.id];
     let partnerId = Object.keys(calculatedScores).find(id => id !== socket.id);
     let partnerData = calculatedScores[partnerId];
-
     myTotalScore = myData.totalScore;
     partnerTotalScore = partnerData ? partnerData.totalScore : 0;
-
-    // 3. Update the UI to show the truth
-    // Show the actual correct answer in the top bar
-    document.getElementById('instruction').innerText = `ACTUAL: ${actualBirdCount}`;
-    document.getElementById('instruction').style.color = "#ff4b4b";
-
-    // Keep partner's guess visible in their counter (don't overwrite with actual)
-    const oppDisplay = document.getElementById('opponent-counter');
-    if (partnerData) {
-        // We need the server to send the partner's original guess 'count' too.
-        // For now, let's assume the server includes 'originalCount' in the score object.
-        oppDisplay.innerText = partnerData.originalCount !== undefined ? partnerData.originalCount : "??";
-    }
-
-    if(myData.isPerfect) { 
-        playSound('correct'); 
-        triggerHaptic('success'); 
-    } else { 
-        playSound('wrong'); 
-        triggerHaptic('error'); 
-    }
     
+    if (partnerData) document.getElementById('opponent-counter').innerText = partnerData.originalCount;
     document.getElementById('my-counter').style.color = myData.isPerfect ? "#2ecc71" : "#e74c3c";
+
+    const maxRounds = isBoxes ? 7 : 5;
+    if (currentRound >= maxRounds) {
+        setTimeout(() => { showResults(); }, 3000);
+    }
 }
 
 function showResults() {
@@ -256,7 +278,7 @@ function showResults() {
     const winMsg = document.getElementById('winner-announcement');
     if(myTotalScore >= partnerTotalScore) {
         winMsg.innerText = `${playerName.toUpperCase()} WINS!`;
-        playSound('victory');
+        sounds.victory.play();
         triggerHaptic('success');
     } else {
         winMsg.innerText = `${partnerName.toUpperCase()} WINS!`;
